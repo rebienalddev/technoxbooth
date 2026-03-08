@@ -141,6 +141,18 @@
             transform: scale(1.05);
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
         }
+
+        .selection-number {
+            position: absolute;
+            top: 8px; left: 8px;
+            width: 24px; height: 24px;
+            background: var(--accent); color: #000;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 12px;
+            z-index: 10; pointer-events: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body> <!--test-->
@@ -371,11 +383,18 @@
     function showSelectionScreen() {
         selectionGrid.innerHTML = ''; // Clear previous
         capturedPhotos.forEach((photoCanvas, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.style.position = 'relative';
+
             const img = document.createElement('img');
             img.src = photoCanvas.toDataURL();
             img.classList.add('selection-thumb');
             img.dataset.index = index;
             
+            const num = document.createElement('div');
+            num.className = 'selection-number';
+            num.innerText = index + 1;
+
             img.onclick = () => {
                 const isSelected = img.classList.contains('selected');
                 const selectedCount = document.querySelectorAll('.selection-thumb.selected').length;
@@ -386,7 +405,9 @@
                     img.classList.add('selected');
                 }
             };
-            selectionGrid.appendChild(img);
+            wrapper.appendChild(img);
+            wrapper.appendChild(num);
+            selectionGrid.appendChild(wrapper);
         });
         selectionScreen.style.display = 'flex';
     }
