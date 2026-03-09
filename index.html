@@ -91,6 +91,7 @@
         .countdown {
             position: absolute; font-size: 12rem; color: white;
             font-weight: 900; z-index: 100; pointer-events: none;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
         }
 
         #camera-guide {
@@ -251,6 +252,7 @@
         <div class="camera-container">
             <video id="camera-view" autoplay playsinline></video>
             <div id="camera-guide"></div>
+            <div id="countdown" class="countdown" style="display:none;"></div>
         </div>
         <canvas id="final-canvas"></canvas>
 
@@ -288,6 +290,7 @@
     const startBtn = document.getElementById('start-btn');
     const downloadBtn = document.getElementById('download-btn');
     const flashEl = document.getElementById('flash');
+    const countdownEl = document.getElementById('countdown');
     const guide = document.getElementById('camera-guide');
     const selectionScreen = document.getElementById('selection-screen');
     const selectionGrid = document.getElementById('selection-grid');
@@ -356,29 +359,46 @@
     });
 
     // Take Shots Logic
-    startBtn.onclick = () => {
+    startBtn.onclick = async () => {
         const targetCount = 6;
+        startBtn.style.display = 'none';
 
-        // Initialize session if starting fresh
-        if (capturedPhotos.length === 0) {
-            video.style.display = 'block';
-            canvas.style.display = 'none';
-            updateGuide();
+        // Initialize session
+        capturedPhotos = [];
+        video.style.display = 'block';
+        canvas.style.display = 'none';
+        updateGuide();
+
+        for (let i = 0; i < targetCount; i++) {
+            await runCountdown(5);
+            flash();
+            snap();
         }
 
-        flash();
-        snap();
-
-        if (capturedPhotos.length < targetCount) {
-            startBtn.innerText = `Take Photo (${capturedPhotos.length + 1}/${targetCount})`;
-        } else {
-            // All 6 shots taken, move to selection screen
-            video.style.display = 'none';
-            guide.style.display = 'none';
-            startBtn.style.display = 'none';
-            showSelectionScreen();
-        }
+        // All 6 shots taken, move to selection screen
+        video.style.display = 'none';
+        guide.style.display = 'none';
+        showSelectionScreen();
     };
+
+    function runCountdown(seconds) {
+        return new Promise(resolve => {
+            countdownEl.style.display = 'block';
+            countdownEl.innerText = seconds;
+            let count = seconds;
+            
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownEl.innerText = count;
+                } else {
+                    clearInterval(timer);
+                    countdownEl.style.display = 'none';
+                    resolve();
+                }
+            }, 1000);
+        });
+    }
 
     function showSelectionScreen() {
         selectionGrid.innerHTML = ''; // Clear previous
