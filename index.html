@@ -91,6 +91,11 @@
             padding: 14px 28px; font-weight: bold; border-radius: 8px; cursor: pointer;
             text-transform: uppercase; letter-spacing: 1px;
         }
+        select {
+            background: var(--panel); color: white; border: 1px solid #333;
+            padding: 14px 20px; font-weight: bold; border-radius: 8px; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px; outline: none;
+        }
         
         /* Filters */
         .sidebar-filters { background: var(--panel); border-left: 1px solid #333; padding: 20px; }
@@ -352,6 +357,10 @@
         </div>
 
         <div class="controls">
+            <select id="timer-select">
+                <option value="5">5 Sec</option>
+                <option value="10">10 Sec</option>
+            </select>
             <button id="start-btn">Start Shoot</button>
             <button id="download-btn" style="display:none; background:white;">Save Jpeg</button>
         </div>
@@ -363,6 +372,7 @@
     const canvas = document.getElementById('final-canvas');
     const ctx = canvas.getContext('2d');
     const frameSidebar = document.getElementById('frame-sidebar');
+    const timerSelect = document.getElementById('timer-select');
     const startBtn = document.getElementById('start-btn');
     const downloadBtn = document.getElementById('download-btn');
     const flashEl = document.getElementById('flash');
@@ -437,7 +447,9 @@
     // Take Shots Logic
     startBtn.onclick = async () => {
         const targetCount = 6;
+        const duration = parseInt(timerSelect.value);
         startBtn.style.display = 'none';
+        timerSelect.style.display = 'none';
 
         // Initialize session
         capturedPhotos = [];
@@ -446,7 +458,7 @@
         updateGuide();
 
         for (let i = 0; i < targetCount; i++) {
-            await runCountdown(5);
+            await runCountdown(duration);
             flash();
             snap();
         }
