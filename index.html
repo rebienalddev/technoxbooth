@@ -347,6 +347,7 @@
             <video id="camera-view" autoplay playsinline></video>
             <div id="camera-guide"></div>
             <div id="countdown" class="countdown" style="display:none;"></div>
+            <div id="photo-counter" style="display:none; position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.6); color: white; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 24px; z-index: 50; pointer-events: none; border: 2px solid rgba(255,255,255,0.3);">1/6</div>
         </div>
         <canvas id="final-canvas"></canvas>
 
@@ -377,6 +378,7 @@
     const downloadBtn = document.getElementById('download-btn');
     const flashEl = document.getElementById('flash');
     const countdownEl = document.getElementById('countdown');
+    const photoCounter = document.getElementById('photo-counter');
     const guide = document.getElementById('camera-guide');
     const selectionScreen = document.getElementById('selection-screen');
     const selectionGrid = document.getElementById('selection-grid');
@@ -456,8 +458,10 @@
         video.style.display = 'block';
         canvas.style.display = 'none';
         updateGuide();
+        photoCounter.style.display = 'block';
 
         for (let i = 0; i < targetCount; i++) {
+            photoCounter.innerText = `${i + 1}/${targetCount}`;
             await runCountdown(duration);
             flash();
             snap();
@@ -466,6 +470,7 @@
         // All 6 shots taken, move to selection screen
         video.style.display = 'none';
         guide.style.display = 'none';
+        photoCounter.style.display = 'none';
         showSelectionScreen();
     };
 

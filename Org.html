@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TechnoBytes</title>
+    <style>
+        :root { --bg: #0a0a0a; --accent: #ffffff; --panel: #151515; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
+
+        .app-container {
+            display: grid;
+            grid-template-columns: 340px 1fr;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Sidebar: Frames */
+        .sidebar-frames {
+            background: var(--panel);
+            border-right: 1px solid #333;
+            overflow-x: hidden;
+            overflow-y: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            padding: 15px;
+            transition: all 0.4s ease;
+            filter: grayscale(1) blur(2px);
+            pointer-events: none; /* Locked initially */
+        }
+        .sidebar-frames::-webkit-scrollbar {
+            display: none;
+        }
+        .sidebar-frames.unlocked {
+            filter: none;
+            pointer-events: auto;
+        }
+
+        .frame-wrapper {
+            position: relative;
+        }
+        .frame-number {
+            position: absolute; top: 5px; left: 5px;
+            width: 32px; height: 32px;
+            background: var(--accent); color: #000;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: 900; font-size: 16px;
+            z-index: 10; pointer-events: none;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.9);
+            border: 2px solid #000;
+        }
+        .frame-thumb {
+            width: 100%; aspect-ratio: 2/3;
+            border: 3px solid #333;
+            cursor: pointer;
+            object-fit: cover;
+            border-radius: 4px;
+        }
+        .frame-thumb.selected { border-color: var(--accent); transform: scale(1.02); }
+
+        /* Main Viewport */
+        .viewport {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+
+        .camera-container {
+            position: relative;
+            width: 85%;
+            max-height: 70%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #camera-view { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; transform: scaleX(-1); }
+        #final-canvas { display: none; max-height: 85vh; max-width: 90%; box-shadow: 0 0 50px rgba(0,0,0,0.8); }
+
+        .controls { margin-top: 25px; display: flex; gap: 15px; z-index: 10; }
+        button {
+            background: var(--accent); color: #000; border: none;
+            padding: 14px 28px; font-weight: bold; border-radius: 8px; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px;
+        }
+        select {
+            background: var(--panel); color: white; border: 1px solid #333;
+            padding: 14px 20px; font-weight: bold; border-radius: 8px; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px; outline: none;
+        }
+        
+        /* Filters */
+        .sidebar-filters { background: var(--panel); border-left: 1px solid #333; padding: 20px; }
+        .filter-btn {
+            width: 100%; margin-bottom: 10px; background: #252525; color: #fff;
+            padding: 12px; border: 1px solid #444; cursor: pointer; border-radius: 6px;
+        }
+        .filter-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
+        /* Effects */
+        #flash { position: fixed; inset: 0; background: white; opacity: 0; pointer-events: none; z-index: 9999; }
+        .countdown {
+            position: absolute; font-size: 12rem; color: white;
+            font-weight: 900; z-index: 100; pointer-events: none;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+        }
+        #camera-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 90%;
+            height: 80%;
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.8);
+            z-index: 5;
+            pointer-events: none;
+            display: none;
+            border-radius: 12px;
+        }
+        #selection-screen {
+            position: absolute;
+            inset: 0;
+            background: rgba(10, 10, 10, 0.95);
+            z-index: 20;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            display: none; 
+        }
+
+        #selection-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            width: 95%;
+            max-width: 1400px;
+        }
+
+        .selection-thumb {
+            width: 100%;
+            aspect-ratio: 1280 / 720;
+            object-fit: cover;
+            border: 4px solid #555;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .selection-thumb.selected {
+            border-color: var(--accent);
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.5);
+        }
+
+        .selection-number {
+            position: absolute;
+            top: 8px; left: 8px;
+            width: 24px; height: 24px;
+            background: var(--accent); color: #000;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; font-size: 12px;
+            z-index: 10; pointer-events: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body> <!--test-->
+
+<div id="flash"></div>
+
+<div class="app-container">
+    <div class="sidebar-frames" id="frame-sidebar">
+        <p style="text-align:center; font-size: 11px; color: var(--accent); font-weight: bold; grid-column: span 2;">SELECT FRAME</p>
+        <div class="frame-wrapper">
+            <div class="frame-number">1</div>
+            <img src="4RLigaLayer1.png" class="frame-thumb" data-id="28" crossorigin="anonymous">
+        </div>
+        <div class="frame-wrapper">
+            <div class="frame-number">2</div>
+            <img src="4RStudentCouncilLayer1.png" class="frame-thumb" data-id="2" crossorigin="anonymous">
+        </div>
+        <div class="frame-wrapper">
+            <div class="frame-number">3</div>
+            <img src="4RChronLayer1.png" class="frame-thumb" data-id="4" crossorigin="anonymous">
+        </div>
+        <div class="frame-wrapper">
+            <div class="frame-number">4</div>
+            <img src="4RTechnoLayer1.png" class="frame-thumb" data-id="14" crossorigin="anonymous">
+        </div>
+        <div class="frame-wrapper">
+            <div class="frame-number">5</div>
+            <img src="4RVigiLayer1.png" class="frame-thumb" data-id="13" crossorigin="anonymous">
+        </div>
+        <div class="frame-wrapper">
+            <div class="frame-number">6</div>
+            <img src="4RStagLayer1.png" class="frame-thumb" data-id="3" crossorigin="anonymous">
+        </div>
+        <div class="frame-wrapper">
+            <div class="frame-number">7</div>
+            <img src="4RStitchLayer1.png" class="frame-thumb" data-id="18" crossorigin="anonymous">
+        </div>
+    </div>
+    
+    <!-- Preload Layer for sandwiching -->
+    <img src="4RStudentCouncilLayer2.png" id="layer2-img" style="display:none;" crossorigin="anonymous">
+    <img src="4RStudentCouncilLayer1.png" id="sc-overlay" style="display:none;" crossorigin="anonymous">
+    <img src="4RStagLayer2.png" id="stag-layer2" style="display:none;" crossorigin="anonymous">
+    <img src="4RStagLayer1.png" id="stag-layer1" style="display:none;" crossorigin="anonymous">
+    <img src="4RChronLayer1.png" id="chron-layer1" style="display:none;" crossorigin="anonymous">
+    <img src="4RChronLayer2.png" id="chron-layer2" style="display:none;" crossorigin="anonymous">
+    <img src="4RVigiLayer1.png" id="vigi-layer1" style="display:none;" crossorigin="anonymous">
+    <img src="4RVigiLayer2.png" id="vigi-layer2" style="display:none;" crossorigin="anonymous">
+    <img src="4RTechnoLayer1.png" id="techno-layer1" style="display:none;" crossorigin="anonymous">
+    <img src="4RTechnoLayer2.png" id="techno-layer2" style="display:none;" crossorigin="anonymous">
+    <img src="4RStitchLayer1.png" id="stitch-layer1" style="display:none;" crossorigin="anonymous">
+    <img src="4RStitchLayer2.png" id="stitch-layer2" style="display:none;" crossorigin="anonymous">
+    <img src="4RLigaLayer1.png" id="liga-layer1" style="display:none;" crossorigin="anonymous">
+    <img src="4RLigaLayer2.png" id="liga-layer2" style="display:none;" crossorigin="anonymous">
+
+    <div class="viewport">
+        <div class="camera-container">
+            <video id="camera-view" autoplay playsinline></video>
+            <div id="camera-guide"></div>
+            <div id="countdown" class="countdown" style="display:none;"></div>
+            <div id="photo-counter" style="display:none; position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.6); color: white; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 24px; z-index: 50; pointer-events: none; border: 2px solid rgba(255,255,255,0.3);">1/6</div>
+        </div>
+        <canvas id="final-canvas"></canvas>
+
+        <div id="selection-screen" style="display: none;">
+            <h3 style="color: white; font-weight: bold; text-transform: uppercase; letter-spacing: 1px;">Select 1 Photo</h3>
+            <div id="selection-grid"></div>
+            <button id="confirm-selection-btn">Create Strip</button>
+        </div>
+
+        <div class="controls">
+            <select id="timer-select">
+                <option value="5">5 Sec</option>
+                <option value="10">10 Sec</option>
+            </select>
+            <button id="start-btn">Start Shoot</button>
+            <button id="download-btn" style="display:none; background:white;">Save Jpeg</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('camera-view');
+    const canvas = document.getElementById('final-canvas');
+    const ctx = canvas.getContext('2d');
+    const frameSidebar = document.getElementById('frame-sidebar');
+    const timerSelect = document.getElementById('timer-select');
+    const startBtn = document.getElementById('start-btn');
+    const downloadBtn = document.getElementById('download-btn');
+    const flashEl = document.getElementById('flash');
+    const countdownEl = document.getElementById('countdown');
+    const photoCounter = document.getElementById('photo-counter');
+    const guide = document.getElementById('camera-guide');
+    const selectionScreen = document.getElementById('selection-screen');
+    const selectionGrid = document.getElementById('selection-grid');
+    const confirmSelectionBtn = document.getElementById('confirm-selection-btn');
+
+    let capturedPhotos = [];
+    let finalSelectedPhotos = [];
+    let currentFilter = 'none';
+    let currentFrameImg = document.querySelector('.frame-thumb.selected');
+
+    // Init Camera
+    navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } })
+        .then(stream => {
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                guide.style.display = 'block';
+            };
+        });
+
+    // Filter Logic
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.onclick = () => {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentFilter = btn.dataset.filter;
+            video.style.filter = currentFilter;
+            if(finalSelectedPhotos.length > 0) renderFinal(finalSelectedPhotos);
+        }
+    });
+
+    // Frame Selection Logic (Fixed: Re-renders the canvas with existing photos)
+    document.querySelectorAll('.frame-thumb').forEach(img => {
+        img.onclick = () => {
+            document.querySelectorAll('.frame-thumb').forEach(i => i.classList.remove('selected'));
+            img.classList.add('selected');
+            currentFrameImg = img;
+            if (finalSelectedPhotos.length > 0) {
+                renderFinal(finalSelectedPhotos); // Apply new frame to existing images
+            }
+        }
+    });
+
+    // Take Shots Logic
+    startBtn.onclick = async () => {
+        const targetCount = 3;
+        const duration = parseInt(timerSelect.value);
+        startBtn.style.display = 'none';
+        timerSelect.style.display = 'none';
+
+        // Initialize session
+        capturedPhotos = [];
+        video.style.display = 'block';
+        canvas.style.display = 'none';
+        guide.style.display = 'block';
+        photoCounter.style.display = 'block';
+
+        for (let i = 0; i < targetCount; i++) {
+            photoCounter.innerText = `${i + 1}/${targetCount}`;
+            await runCountdown(duration);
+            flash();
+            snap();
+        }
+
+        // All 6 shots taken, move to selection screen
+        video.style.display = 'none';
+        guide.style.display = 'none';
+        photoCounter.style.display = 'none';
+        showSelectionScreen();
+    };
+
+    function runCountdown(seconds) {
+        return new Promise(resolve => {
+            countdownEl.style.display = 'block';
+            countdownEl.innerText = seconds;
+            let count = seconds;
+            
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownEl.innerText = count;
+                } else {
+                    clearInterval(timer);
+                    countdownEl.style.display = 'none';
+                    resolve();
+                }
+            }, 1000);
+        });
+    }
+
+    function showSelectionScreen() {
+        selectionGrid.innerHTML = ''; // Clear previous
+        capturedPhotos.forEach((photoCanvas, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.style.position = 'relative';
+
+            const img = document.createElement('img');
+            img.src = photoCanvas.toDataURL();
+            img.classList.add('selection-thumb');
+            img.dataset.index = index;
+            
+            const num = document.createElement('div');
+            num.className = 'selection-number';
+            num.innerText = index + 1;
+
+            img.onclick = () => {
+                const isSelected = img.classList.contains('selected');
+                const selectedCount = document.querySelectorAll('.selection-thumb.selected').length;
+
+                if (isSelected) {
+                    img.classList.remove('selected');
+                } else if (selectedCount < 1) {
+                    img.classList.add('selected');
+                }
+            };
+            wrapper.appendChild(img);
+            wrapper.appendChild(num);
+            selectionGrid.appendChild(wrapper);
+        });
+        selectionScreen.style.display = 'flex';
+    }
+
+    confirmSelectionBtn.onclick = () => {
+        const selectedThumbs = document.querySelectorAll('.selection-thumb.selected');
+        if (selectedThumbs.length !== 1) {
+            alert('Please select exactly 1 photo.');
+            return;
+        }
+
+        const index = parseInt(selectedThumbs[0].dataset.index, 10);
+        const chosenPhoto = capturedPhotos[index];
+        finalSelectedPhotos = [chosenPhoto];
+
+        selectionScreen.style.display = 'none';
+        canvas.style.display = 'block';
+        frameSidebar.classList.add('unlocked');
+        downloadBtn.style.display = 'inline-block';
+        startBtn.innerText = "Restart";
+        startBtn.style.display = 'inline-block';
+        startBtn.onclick = () => location.reload();
+        renderFinal(finalSelectedPhotos);
+    };
+
+    function flash() {
+        flashEl.style.opacity = 1;
+        setTimeout(() => flashEl.style.opacity = 0, 100);
+    }
+
+    function snap() {
+        const temp = document.createElement('canvas');
+        temp.width = video.videoWidth;
+        temp.height = video.videoHeight;
+        const tCtx = temp.getContext('2d');
+        
+        tCtx.translate(temp.width, 0);
+        tCtx.scale(-1, 1);
+        tCtx.drawImage(video, 0, 0);
+        capturedPhotos.push(temp);
+    }
+
+    function renderFinal(photosToRender) {
+        if (!photosToRender || photosToRender.length === 0) return;
+
+        const count = photosToRender.length;
+        const w = 1800; // 6 inches @ 300dpi
+        const h = 1200; // 4 inches @ 300dpi
+        canvas.width = w;
+        canvas.height = h;
+
+        const frameId = currentFrameImg.dataset.id;
+
+        // Draw Background
+        ctx.filter = 'none';
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+
+        // Helper: Draw Photos
+        const drawPhotos = () => {
+            const padding = 60;
+            const slotH = h - (padding * 2);
+            const slotW = (w - (padding * (count + 1))) / count;
+
+            photosToRender.forEach((imgCanvas, i) => {
+                const xPos = padding + (i * (slotW + padding));
+                const yPos = padding;
+                
+                // Aspect Ratio Crop Logic (Center Crop)
+                const sRatio = imgCanvas.width / imgCanvas.height;
+                const dRatio = slotW / slotH;
+                let sx, sy, sWidth, sHeight;
+
+                if (sRatio > dRatio) {
+                    // Image is wider than slot: Crop width
+                    sHeight = imgCanvas.height;
+                    sWidth = imgCanvas.height * dRatio;
+                    sx = (imgCanvas.width - sWidth) / 2;
+                    sy = 0;
+                } else {
+                    // Image is taller than slot: Crop height
+                    sWidth = imgCanvas.width;
+                    sHeight = imgCanvas.width / dRatio;
+                    sx = 0;
+                    sy = (imgCanvas.height - sHeight) / 2;
+                }
+
+                // Draw cropped image with 10px radius
+                ctx.save();
+                ctx.beginPath();
+                ctx.roundRect(xPos, yPos, slotW, slotH, 30);
+                ctx.clip();
+                ctx.filter = currentFilter;
+                ctx.drawImage(imgCanvas, sx, sy, sWidth, sHeight, xPos, yPos, slotW, slotH);
+                ctx.restore();
+
+                // Draw Border
+                ctx.beginPath();
+                ctx.lineWidth = 10;
+
+                if (frameId === '2') {
+                    ctx.strokeStyle = '#234d71';
+                    ctx.roundRect(xPos, yPos, slotW, slotH, 30);
+                    ctx.stroke();
+
+                    // Outer Dashed White Border
+                    ctx.beginPath();
+                    ctx.lineWidth = 4;
+                    ctx.strokeStyle = 'white';
+                    ctx.setLineDash([12, 12]);
+                    ctx.roundRect(xPos - 15, yPos - 15, slotW + 30, slotH + 30, 45);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                } else {
+                    ctx.strokeStyle = 'white';
+                    ctx.roundRect(xPos, yPos, slotW, slotH, 30);
+                    ctx.stroke();
+                }
+            });
+            ctx.filter = 'none';
+        };
+
+        // Helper: Draw Image Fit
+        const drawImageFit = (img) => {
+            const fRatio = img.naturalWidth / img.naturalHeight;
+            const cRatio = w / h;
+            let dw, dh, dx, dy;
+
+            if (fRatio > cRatio) {
+                dh = h;
+                dw = h * fRatio;
+                dx = (w - dw) / 2;
+                dy = 0;
+            } else {
+                dw = w;
+                dh = w / fRatio;
+                dx = 0;
+                dy = (h - dh) / 2;
+            }
+            ctx.drawImage(img, 0, 0, img.naturalWidth, img.naturalHeight, dx, dy, dw, dh);
+            return { dx, dy, dw, dh };
+        };
+
+        // --- Frame Logic Switch ---
+        if (frameId === '2') {
+            // FRAME 2: Student Council (3 Layers: Photos + Middle + Top)
+            
+            // 1. Photos (Layer 1)
+            drawPhotos();
+
+            // 2. StudentCouncilLayer1 (Layer 2) - Remove White
+            const scOverlay = document.getElementById('sc-overlay');
+            if (scOverlay) {
+                // Create a temp canvas to remove white background
+                const tempC = document.createElement('canvas');
+                tempC.width = w;
+                tempC.height = h;
+                const tCtx = tempC.getContext('2d');
+
+                // Draw overlay stretched to fit (ensures alignment)
+                tCtx.drawImage(scOverlay, 0, 0, w, h);
+
+                try {
+                    const imgData = tCtx.getImageData(0, 0, w, h);
+                    const data = imgData.data;
+                    
+                    // Define Photo Slots (Replicating drawPhotos logic)
+                    const padding = 60;
+                    const slotW = (w - (padding * (count + 1))) / count;
+                    
+                    // Iterate over each slot and clear white pixels specifically in that area
+                    for (let k = 0; k < count; k++) {
+                        const xStart = Math.floor(padding + (k * (slotW + padding)));
+                        const xEnd = Math.floor(xStart + slotW);
+                        const yStart = padding;
+                        const yEnd = h - padding;
+                        
+                        // Process only the pixels within this slot's rectangle
+                        for (let y = yStart; y < yEnd; y++) {
+                            const rowStart = y * w * 4;
+                            for (let x = xStart; x < xEnd; x++) {
+                                const i = rowStart + (x * 4);
+                                // If pixel is white, make it transparent
+                                if (data[i] > 230 && data[i + 1] > 230 && data[i + 2] > 230) {
+                                    data[i + 3] = 0;
+                                }
+                            }
+                        }
+                    }
+                    tCtx.putImageData(imgData, 0, 0);
+                    ctx.drawImage(tempC, 0, 0);
+                } catch (e) {
+                    // Fallback
+                    ctx.drawImage(scOverlay, 0, 0, w, h);
+                }
+            }
+
+            // 3. Top Layer (StudentCouncilLayer2)
+            const layer2 = document.getElementById('layer2-img');
+            if (layer2) {
+                ctx.drawImage(layer2, 0, 0, w, h);
+            }
+
+        } else if (frameId === '13') {
+            // FRAME 13: Vigi (3 Layers: Photos + VigiLayer1 + VigiLayer2)
+            
+            // 1. Photos
+            drawPhotos();
+
+            // 2. VigiLayer1 (Remove White)
+            const vigiL1 = document.getElementById('vigi-layer1');
+            if (vigiL1) {
+                const tempC = document.createElement('canvas');
+                tempC.width = w;
+                tempC.height = h;
+                const tCtx = tempC.getContext('2d');
+                tCtx.drawImage(vigiL1, 0, 0, w, h);
+
+                try {
+                    const imgData = tCtx.getImageData(0, 0, w, h);
+                    const data = imgData.data;
+                    const padding = 60;
+                    const slotW = (w - (padding * (count + 1))) / count;
+                    for (let k = 0; k < count; k++) {
+                        const xStart = Math.floor(padding + (k * (slotW + padding)));
+                        const xEnd = Math.floor(xStart + slotW);
+                        const yStart = padding;
+                        const yEnd = h - padding;
+                        for (let y = yStart; y < yEnd; y++) {
+                            const rowStart = y * w * 4;
+                            for (let x = xStart; x < xEnd; x++) {
+                                const i = rowStart + (x * 4);
+                                if (data[i] > 230 && data[i + 1] > 230 && data[i + 2] > 230) data[i + 3] = 0;
+                            }
+                        }
+                    }
+                    tCtx.putImageData(imgData, 0, 0);
+                    ctx.drawImage(tempC, 0, 0);
+                } catch (e) { ctx.drawImage(vigiL1, 0, 0, w, h); }
+            }
+
+            // 3. VigiLayer2
+            const vigiL2 = document.getElementById('vigi-layer2');
+            if (vigiL2) {
+                ctx.drawImage(vigiL2, 0, 0, w, h);
+            }
+
+        } else if (frameId === '14') {
+            // FRAME 14: Techno (3 Layers: Photos + TechnoLayer1 + TechnoLayer2)
+            
+            // 1. Photos
+            drawPhotos();
+
+            // 2. TechnoLayer1 (Remove White)
+            const technoL1 = document.getElementById('techno-layer1');
+            if (technoL1) {
+                const tempC = document.createElement('canvas');
+                tempC.width = w;
+                tempC.height = h;
+                const tCtx = tempC.getContext('2d');
+                tCtx.drawImage(technoL1, 0, 0, w, h);
+
+                try {
+                    const imgData = tCtx.getImageData(0, 0, w, h);
+                    const data = imgData.data;
+                    const padding = 60;
+                    const slotW = (w - (padding * (count + 1))) / count;
+                    for (let k = 0; k < count; k++) {
+                        const xStart = Math.floor(padding + (k * (slotW + padding)));
+                        const xEnd = Math.floor(xStart + slotW);
+                        const yStart = padding;
+                        const yEnd = h - padding;
+                        for (let y = yStart; y < yEnd; y++) {
+                            const rowStart = y * w * 4;
+                            for (let x = xStart; x < xEnd; x++) {
+                                const i = rowStart + (x * 4);
+                                if (data[i] > 230 && data[i + 1] > 230 && data[i + 2] > 230) data[i + 3] = 0;
+                            }
+                        }
+                    }
+                    tCtx.putImageData(imgData, 0, 0);
+                    ctx.drawImage(tempC, 0, 0);
+                } catch (e) { ctx.drawImage(technoL1, 0, 0, w, h); }
+            }
+
+            // 3. TechnoLayer2
+            const technoL2 = document.getElementById('techno-layer2');
+            if (technoL2) {
+                ctx.drawImage(technoL2, 0, 0, w, h);
+            }
+
+        } else if (frameId === '18') {
+            // FRAME 18: Stitch (3 Layers: Photos + StitchLayer1 + StitchLayer2)
+            
+            // 1. Photos
+            drawPhotos();
+
+            // 2. StitchLayer1 (Remove White)
+            const stitchL1 = document.getElementById('stitch-layer1');
+            if (stitchL1) {
+                const tempC = document.createElement('canvas');
+                tempC.width = w;
+                tempC.height = h;
+                const tCtx = tempC.getContext('2d');
+                tCtx.drawImage(stitchL1, 0, 0, w, h);
+
+                try {
+                    const imgData = tCtx.getImageData(0, 0, w, h);
+                    const data = imgData.data;
+                    const padding = 60;
+                    const slotW = (w - (padding * (count + 1))) / count;
+                    for (let k = 0; k < count; k++) {
+                        const xStart = Math.floor(padding + (k * (slotW + padding)));
+                        const xEnd = Math.floor(xStart + slotW);
+                        const yStart = padding;
+                        const yEnd = h - padding;
+                        for (let y = yStart; y < yEnd; y++) {
+                            const rowStart = y * w * 4;
+                            for (let x = xStart; x < xEnd; x++) {
+                                const i = rowStart + (x * 4);
+                                if (data[i] > 230 && data[i + 1] > 230 && data[i + 2] > 230) data[i + 3] = 0;
+                            }
+                        }
+                    }
+                    tCtx.putImageData(imgData, 0, 0);
+                    ctx.drawImage(tempC, 0, 0);
+                } catch (e) { ctx.drawImage(stitchL1, 0, 0, w, h); }
+            }
+
+            // 3. StitchLayer2
+            const stitchL2 = document.getElementById('stitch-layer2');
+            if (stitchL2) {
+                ctx.drawImage(stitchL2, 0, 0, w, h);
+            }
+        } else if (frameId === '28') {
+            // FRAME 28: Liga (3 Layers: Photos + LigaLayer1 + LigaLayer2)
+            
+            // 1. Photos
+            drawPhotos();
+
+            // 2. LigaLayer1 (Remove White)
+            const ligaL1 = document.getElementById('liga-layer1');
+            if (ligaL1) {
+                const tempC = document.createElement('canvas');
+                tempC.width = w;
+                tempC.height = h;
+                const tCtx = tempC.getContext('2d');
+                tCtx.drawImage(ligaL1, 0, 0, w, h);
+
+                try {
+                    const imgData = tCtx.getImageData(0, 0, w, h);
+                    const data = imgData.data;
+                    const padding = 60;
+                    const slotW = (w - (padding * (count + 1))) / count;
+                    for (let k = 0; k < count; k++) {
+                        const xStart = Math.floor(padding + (k * (slotW + padding)));
+                        const xEnd = Math.floor(xStart + slotW);
+                        const yStart = padding;
+                        const yEnd = h - padding;
+                        for (let y = yStart; y < yEnd; y++) {
+                            const rowStart = y * w * 4;
+                            for (let x = xStart; x < xEnd; x++) {
+                                const i = rowStart + (x * 4);
+                                if (data[i] > 230 && data[i + 1] > 230 && data[i + 2] > 230) data[i + 3] = 0;
+                            }
+                        }
+                    }
+                    tCtx.putImageData(imgData, 0, 0);
+                    ctx.drawImage(tempC, 0, 0);
+                } catch (e) { ctx.drawImage(ligaL1, 0, 0, w, h); }
+            }
+
+            // 3. LigaLayer2
+            const ligaL2 = document.getElementById('liga-layer2');
+            if (ligaL2) {
+                ctx.drawImage(ligaL2, 0, 0, w, h);
+            }
+        } else if (frameId === '3') {
+            // FRAME 3: Stag (3 Layers: Photos + StagLayer1 + StagLayer2)
+            
+            // 1. Photos
+            drawPhotos();
+
+            // 2. StagLayer1 (Remove White)
+            const stagL1 = document.getElementById('stag-layer1');
+            if (stagL1) {
+                const tempC = document.createElement('canvas');
+                tempC.width = w;
+                tempC.height = h;
+                const tCtx = tempC.getContext('2d');
+
+                tCtx.drawImage(stagL1, 0, 0, w, h);
+
+                try {
+                    const imgData = tCtx.getImageData(0, 0, w, h);
+                    const data = imgData.data;
+                    
+                    const padding = 60;
+                    const slotW = (w - (padding * (count + 1))) / count;
+
+                    for (let k = 0; k < count; k++) {
+                        const xStart = Math.floor(padding + (k * (slotW + padding)));
+                        const xEnd = Math.floor(xStart + slotW);
+                        const yStart = padding;
+                        const yEnd = h - padding;
+                        
+                        for (let y = yStart; y < yEnd; y++) {
+                            const rowStart = y * w * 4;
+                            for (let x = xStart; x < xEnd; x++) {
+                                const i = rowStart + (x * 4);
+                            if (data[i] > 230 && data[i + 1] > 230 && data[i + 2] > 230) {
+                                    data[i + 3] = 0;
+                                }
+                            }
+                        }
+                    }
+                    tCtx.putImageData(imgData, 0, 0);
+                    ctx.drawImage(tempC, 0, 0);
+                } catch (e) {
+                    ctx.drawImage(stagL1, 0, 0, w, h);
+                }
+            }
+
+            // 3. StagLayer2 (Draw As-Is)
+            const stagL2 = document.getElementById('stag-layer2');
+            if (stagL2) {
+                ctx.drawImage(stagL2, 0, 0, w, h);
+            }
+
+        } else if (frameId === '4') {
+            // FRAME 4: Chronicles (3 Layers: Photos + ChronLayer1 + ChronLayer2)
+            
+            // 1. Photos
+            drawPhotos();
+
+            // 2. ChronLayer1 (Remove White)
+            const chronL1 = document.getElementById('chron-layer1');
+            if (chronL1) {
+                const tempC = document.createElement('canvas');
+                tempC.width = w;
+                tempC.height = h;
+                const tCtx = tempC.getContext('2d');
+
+                tCtx.drawImage(chronL1, 0, 0, w, h);
+
+                try {
+                    const imgData = tCtx.getImageData(0, 0, w, h);
+                    const data = imgData.data;
+                    
+                    const padding = 60;
+                    const slotW = (w - (padding * (count + 1))) / count;
+
+                    for (let k = 0; k < count; k++) {
+                        const xStart = Math.floor(padding + (k * (slotW + padding)));
+                        const xEnd = Math.floor(xStart + slotW);
+                        const yStart = padding;
+                        const yEnd = h - padding;
+                        
+                        for (let y = yStart; y < yEnd; y++) {
+                            const rowStart = y * w * 4;
+                            for (let x = xStart; x < xEnd; x++) {
+                                const i = rowStart + (x * 4);
+                                if (data[i] > 230 && data[i + 1] > 230 && data[i + 2] > 230) {
+                                    data[i + 3] = 0;
+                                }
+                            }
+                        }
+                    }
+                    tCtx.putImageData(imgData, 0, 0);
+                    ctx.drawImage(tempC, 0, 0);
+                } catch (e) {
+                    ctx.drawImage(chronL1, 0, 0, w, h);
+                }
+            }
+
+            // 3. ChronLayer2 (Draw As-Is)
+            const chronL2 = document.getElementById('chron-layer2');
+            if (chronL2) {
+                ctx.drawImage(chronL2, 0, 0, w, h);
+            }
+
+        } else {
+            // ALL OTHER FRAMES (Standard Mode)
+            
+            // 1. Photos
+            drawPhotos();
+
+            // 2. Foreground Frame
+            drawImageFit(currentFrameImg);
+        }
+    }
+
+    downloadBtn.onclick = () => {
+        const printCanvas = document.createElement('canvas');
+        const printCtx = printCanvas.getContext('2d');
+
+        printCanvas.width = canvas.width;
+        printCanvas.height = canvas.height;
+
+        printCtx.drawImage(canvas, 0, 0);
+
+        const link = document.createElement('a');
+        link.download = `photobooth_${Date.now()}.jpg`;
+        link.href = printCanvas.toDataURL('image/jpeg', 0.95);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+</script>
+</body>
+</html>

@@ -44,14 +44,15 @@
             position: relative;
         }
         .frame-number {
-            position: absolute; top: 8px; left: 8px;
-            width: 24px; height: 24px;
+            position: absolute; top: 5px; left: 5px;
+            width: 32px; height: 32px;
             background: var(--accent); color: #000;
             border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
-            font-weight: bold; font-size: 12px;
+            font-weight: 900; font-size: 16px;
             z-index: 10; pointer-events: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            box-shadow: 0 3px 6px rgba(0,0,0,0.9);
+            border: 2px solid #000;
         }
         .frame-thumb {
             width: 100%; aspect-ratio: 2/3;
@@ -90,12 +91,26 @@
             padding: 14px 28px; font-weight: bold; border-radius: 8px; cursor: pointer;
             text-transform: uppercase; letter-spacing: 1px;
         }
+        select {
+            background: var(--panel); color: white; border: 1px solid #333;
+            padding: 14px 20px; font-weight: bold; border-radius: 8px; cursor: pointer;
+            text-transform: uppercase; letter-spacing: 1px; outline: none;
+        }
         
+        /* Filters */
+        .sidebar-filters { background: var(--panel); border-left: 1px solid #333; padding: 20px; }
+        .filter-btn {
+            width: 100%; margin-bottom: 10px; background: #252525; color: #fff;
+            padding: 12px; border: 1px solid #444; cursor: pointer; border-radius: 6px;
+        }
+        .filter-btn.active { background: var(--accent); color: #000; border-color: var(--accent); }
+
         /* Effects */
         #flash { position: fixed; inset: 0; background: white; opacity: 0; pointer-events: none; z-index: 9999; }
         .countdown {
             position: absolute; font-size: 12rem; color: white;
             font-weight: 900; z-index: 100; pointer-events: none;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
         }
 
         #camera-guide {
@@ -127,8 +142,8 @@
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 15px;
-            width: 80%;
-            max-width: 700px;
+            width: 95%;
+            max-width: 1000px;
         }
 
         .selection-thumb {
@@ -331,6 +346,8 @@
         <div class="camera-container">
             <video id="camera-view" autoplay playsinline></video>
             <div id="camera-guide"></div>
+            <div id="countdown" class="countdown" style="display:none;"></div>
+            <div id="photo-counter" style="display:none; position: absolute; top: 20px; right: 20px; background: rgba(0,0,0,0.6); color: white; padding: 10px 20px; border-radius: 30px; font-weight: bold; font-size: 24px; z-index: 50; pointer-events: none; border: 2px solid rgba(255,255,255,0.3);">1/6</div>
         </div>
         <canvas id="final-canvas"></canvas>
 
@@ -341,6 +358,10 @@
         </div>
 
         <div class="controls">
+            <select id="timer-select">
+                <option value="5">5 Sec</option>
+                <option value="10">10 Sec</option>
+            </select>
             <button id="start-btn">Start Shoot</button>
             <button id="download-btn" style="display:none; background:white;">Save Jpeg</button>
         </div>
@@ -352,9 +373,12 @@
     const canvas = document.getElementById('final-canvas');
     const ctx = canvas.getContext('2d');
     const frameSidebar = document.getElementById('frame-sidebar');
+    const timerSelect = document.getElementById('timer-select');
     const startBtn = document.getElementById('start-btn');
     const downloadBtn = document.getElementById('download-btn');
     const flashEl = document.getElementById('flash');
+    const countdownEl = document.getElementById('countdown');
+    const photoCounter = document.getElementById('photo-counter');
     const guide = document.getElementById('camera-guide');
     const selectionScreen = document.getElementById('selection-screen');
     const selectionGrid = document.getElementById('selection-grid');
@@ -423,29 +447,51 @@
     });
 
     // Take Shots Logic
-    startBtn.onclick = () => {
+    startBtn.onclick = async () => {
         const targetCount = 6;
+        const duration = parseInt(timerSelect.value);
+        startBtn.style.display = 'none';
+        timerSelect.style.display = 'none';
 
-        // Initialize session if starting fresh
-        if (capturedPhotos.length === 0) {
-            video.style.display = 'block';
-            canvas.style.display = 'none';
-            updateGuide();
+        // Initialize session
+        capturedPhotos = [];
+        video.style.display = 'block';
+        canvas.style.display = 'none';
+        updateGuide();
+        photoCounter.style.display = 'block';
+
+        for (let i = 0; i < targetCount; i++) {
+            photoCounter.innerText = `${i + 1}/${targetCount}`;
+            await runCountdown(duration);
+            flash();
+            snap();
         }
 
-        flash();
-        snap();
-
-        if (capturedPhotos.length < targetCount) {
-            startBtn.innerText = `Take Photo (${capturedPhotos.length + 1}/${targetCount})`;
-        } else {
-            // All 6 shots taken, move to selection screen
-            video.style.display = 'none';
-            guide.style.display = 'none';
-            startBtn.style.display = 'none';
-            showSelectionScreen();
-        }
+        // All 6 shots taken, move to selection screen
+        video.style.display = 'none';
+        guide.style.display = 'none';
+        photoCounter.style.display = 'none';
+        showSelectionScreen();
     };
+
+    function runCountdown(seconds) {
+        return new Promise(resolve => {
+            countdownEl.style.display = 'block';
+            countdownEl.innerText = seconds;
+            let count = seconds;
+            
+            const timer = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownEl.innerText = count;
+                } else {
+                    clearInterval(timer);
+                    countdownEl.style.display = 'none';
+                    resolve();
+                }
+            }, 1000);
+        });
+    }
 
     function showSelectionScreen() {
         selectionGrid.innerHTML = ''; // Clear previous
@@ -1124,7 +1170,7 @@
             // 1. Photos
             drawPhotos();
 
-            // 2. SanrioLayer1 (Remove Black)
+            // 2. SanrioLayer1 (Remove White)
             const sanrioL1 = document.getElementById('sanrio-layer1');
             if (sanrioL1) {
                 const tempC = document.createElement('canvas');
